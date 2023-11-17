@@ -1,3 +1,6 @@
+import random
+
+
 class Part:
 
     # Initialize the attributes
@@ -6,6 +9,7 @@ class Part:
         self.attack_level = attack_level
         self.defense_level = defense_level
         self.energy_consumption = energy_consumption
+        self.critical = False
 
     # Return a dic with the values formatted
     def get_status_dict(self):
@@ -21,12 +25,32 @@ class Part:
     # Calculate the defense after the attack
     def reduce_defense(self, attack_level):
         self.defense_level = self.defense_level - attack_level
-        if self.defense_level <= 0:
+        if self.defense_level < 0:
             self.defense_level = 0
 
     # Return True if the defense is > 0
     def is_available(self):
         return not self.defense_level <= 0
+
+    def is_critical(self, part_to_use):
+        chance = self.critical_chance(part_to_use)
+        if chance == 3:
+            self.critical = True
+            self.attack_level *= 2
+        else:
+            self.critical = False
+
+    @staticmethod
+    def critical_chance(part_to_use):
+        if part_to_use == 1:
+            b = 5
+        else:
+            b = 10
+        return random.randint(1, b)
+
+    def return_to_normal(self):
+        if self.critical:
+            self.attack_level /= 2
 
 
 class Robot:
@@ -70,13 +94,15 @@ class Robot:
         return part_status
 
     # Calculate the attack and energy consumption
-    def attack(self, enemy_robot, part_to_use, part_to_attack):
+    def attack(self, current_robot, enemy_robot, part_to_use, part_to_attack):
+        current_robot.parts[part_to_use].is_critical(part_to_use)
         enemy_robot.parts[part_to_attack].reduce_defense(self.parts[part_to_use].attack_level)
         self.energy -= self.parts[part_to_use].energy_consumption
+        current_robot.parts[part_to_use].return_to_normal()
 
     # Verify the energy
     def is_on(self):
-        return self.energy >= 0
+        return self.energy > 0
 
     # Verify if there is available parts
     def is_there_available_part(self):
@@ -163,9 +189,12 @@ def choose_color():
     for key, value in available_colors.items():
         print(value, key)
     print(colors["White"])
-    chosen_color = input("Choose a color: ").capitalize()
-    color_code = available_colors[chosen_color]
-    return color_code
+    while True:
+        chosen_color = input("Choose a color: ").capitalize()
+        if chosen_color in available_colors:
+            color_code = available_colors[chosen_color]
+            return color_code
+        print('This color does not exists')
 
 
 def play():
@@ -188,38 +217,56 @@ def play():
             current_robot = robot_two
             enemy_robot = robot_one
         current_robot.print_status()
-
         if available:
             print("This part is not available because it's broken, try another one")
+
         if available_attack:
             print("This part can't be attacked. -1 turn")
-        print("What part should I use to attack?:")
-        part_to_use = input("Choose a number part: ")
-        part_to_use = int(part_to_use)
+        available_attack = False
+        part_to_use = ''
+        in_range = True
+        while in_range:
+            print("What part should I use to attack?:")
+            part_to_use = input("Choose a number part: ")
+            part_to_use = int(part_to_use)
+            if part_to_use in range(0, 5):
+                in_range = False
+            else:
+                print('This part does not exists')
 
         is_available = current_robot.is_part_available_to_attack(current_robot, part_to_use)
 
         if is_available or part_to_use == 1:
             enemy_robot.print_status()
-            print("Which part of the enemy should we attack?")
-            part_to_attack = input("Choose a enemy number part to attack: ")
-            part_to_attack = int(part_to_attack)
+            part_to_attack = ''
+            in_range = True
+            while in_range:
+                print("Which part of the enemy should we attack?")
+                part_to_attack = input("Choose a enemy number part to attack: ")
+                part_to_attack = int(part_to_attack)
+                if part_to_attack in range(0, 5):
+                    in_range = False
+                else:
+                    print('This part does not exists')
 
             is_available_to_attack = current_robot.is_part_available_to_be_attacked(enemy_robot, part_to_attack)
 
             if is_available_to_attack:
-                current_robot.attack(enemy_robot, part_to_use, part_to_attack)
+                current_robot.attack(current_robot, enemy_robot, part_to_use, part_to_attack)
                 round_count += 1
             else:
                 available_attack = True
-                current_robot.attack(enemy_robot, part_to_use, part_to_attack)
+                current_robot.attack(current_robot, enemy_robot, part_to_use, part_to_attack)
                 round_count += 1
         else:
             available = True
 
         if not enemy_robot.is_on() or enemy_robot.is_there_available_part() is False:
             playing = False
-            print("Congratulations, you won")
+            if not enemy_robot.is_on():
+                print(f"Congratulations, {current_robot} won because the enemy turned off")
+            else:
+                print(f"Congratulations, {current_robot} won because the enemy has been destroyed")
 
 
 play()
